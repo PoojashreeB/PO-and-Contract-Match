@@ -27,8 +27,17 @@ from outlook.graph_client import (
     OutlookAuthError,
     fetch_po_and_contract_attachments,
 )
+from sap.config_store import load_config as load_sap_config
+from sap.config_store import save_config as save_sap_config
+from sap.odata_client import (
+    PurchaseOrderNotFoundError,
+    SapApiError,
+    SapAuthError,
+    fetch_po_record,
+)
 from schemas.discrepancy_schema import ValidationReport
 from schemas.outlook_schema import OutlookConfig
+from schemas.sap_schema import SapConfig
 from utils.report_writer import write_report
 
 logger = logging.getLogger(__name__)
@@ -172,3 +181,67 @@ def fetch_from_outlook() -> OutlookFetchResponse:
         po_pdf_base64=base64.b64encode(po_bytes).decode("ascii"),
         contract_pdf_base64=base64.b64encode(contract_bytes).decode("ascii"),
     )
+
+
+class SapConfigResponse(BaseModel):
+    base_url: str
+    client: str
+    username: str
+    verify_tls: bool
+    password_set: bool
+
+
+class SapPoRecordRequest(BaseModel):
+    po_number: str
+
+
+def _to_sap_config_response(config: SapConfig) -> SapConfigResponse:
+    return SapConfigResponse(
+        base_url=config.base_url,
+        client=config.client,
+        username=config.username,
+        verify_tls=config.verify_tls,
+        password_set=True,
+    )
+
+
+@app.get(
+    "/sap/config",
+    response_model=SapConfigResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def get_sap_config() -> SapConfigResponse:
+    config = load_sap_config()
+    if config is None:
+        raise HTTPException(status_code=404, detail="SAP is not configured yet")
+    return _to_sap_config_response(config)
+
+
+@app.post(
+    "/sap/config",
+    response_model=SapConfigResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def post_sap_config(config: SapConfig) -> SapConfigResponse:
+    save_sap_config(config)
+    return _to_sap_config_response(config)
+
+
+@app.post(
+    "/sap/po-record",
+    response_model=dict[str, str],
+    dependencies=[Depends(require_api_key)],
+)
+def fetch_sap_po_record(request: SapPoRecordRequest) -> dict[str, str]:
+    config = load_sap_config()
+    if config is None:
+        raise HTTPException(status_code=404, detail="SAP is not configured yet")
+
+    try:
+        return fetch_po_record(config, request.po_number)
+    except SapAuthError as error:
+        raise HTTPException(status_code=401, detail=f"SAP authentication failed: {error}")
+    except PurchaseOrderNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error))
+    except SapApiError as error:
+        raise HTTPException(status_code=502, detail=str(error))

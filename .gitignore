@@ -8,3 +8,4 @@ __pycache__/
 output/*.json
 *.pdf
 config/outlook_config.json
+config/sap_config.json

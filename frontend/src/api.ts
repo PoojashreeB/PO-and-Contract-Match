@@ -3,6 +3,9 @@ import type {
   OutlookConfigInput,
   OutlookConfigResponse,
   OutlookFetchResponse,
+  SapConfigInput,
+  SapConfigResponse,
+  SapPoRecord,
   ValidateResponse,
 } from './types'
 
@@ -159,5 +162,88 @@ export async function fetchFromOutlook(
 ): Promise<OutlookFetchResponse> {
   return outlookRequest<OutlookFetchResponse>(baseUrl, apiKey, '/outlook/fetch', {
     method: 'POST',
+  })
+}
+
+function sapMessageForStatus(status: number, detail: unknown): string {
+  if (typeof detail === 'string' && detail.length > 0) {
+    return detail
+  }
+  if (status === 401) {
+    return 'SAP authentication failed — check your connection settings'
+  }
+  if (status === 404) {
+    return 'SAP is not configured, or the PO was not found'
+  }
+  if (status === 502) {
+    return 'SAP returned an error'
+  }
+  return `Unexpected error (status ${status})`
+}
+
+async function sapRequest<T>(
+  baseUrl: string,
+  apiKey: string,
+  path: string,
+  init: RequestInit,
+): Promise<T> {
+  let response: Response
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers: { ...(init.headers ?? {}), 'X-API-Key': apiKey },
+    })
+  } catch {
+    const apiError: ApiError = {
+      status: 0,
+      message:
+        'Could not reach the API — check the URL in Settings and that the server is running',
+    }
+    throw apiError
+  }
+
+  if (!response.ok) {
+    let detail: unknown
+    try {
+      const body = await response.json()
+      detail = body?.detail
+    } catch {
+      detail = undefined
+    }
+    const apiError: ApiError = {
+      status: response.status,
+      message: sapMessageForStatus(response.status, detail),
+    }
+    throw apiError
+  }
+
+  return (await response.json()) as T
+}
+
+export async function getSapConfig(baseUrl: string, apiKey: string): Promise<SapConfigResponse> {
+  return sapRequest<SapConfigResponse>(baseUrl, apiKey, '/sap/config', { method: 'GET' })
+}
+
+export async function saveSapConfig(
+  baseUrl: string,
+  apiKey: string,
+  config: SapConfigInput,
+): Promise<SapConfigResponse> {
+  return sapRequest<SapConfigResponse>(baseUrl, apiKey, '/sap/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  })
+}
+
+export async function fetchSapPoRecord(
+  baseUrl: string,
+  apiKey: string,
+  poNumber: string,
+): Promise<SapPoRecord> {
+  return sapRequest<SapPoRecord>(baseUrl, apiKey, '/sap/po-record', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ po_number: poNumber }),
   })
 }

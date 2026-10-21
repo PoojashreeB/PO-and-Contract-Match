@@ -8,10 +8,14 @@ import type { ApiError, OutlookConfigResponse } from '../types'
 vi.mock('../api', () => ({
   getOutlookConfig: vi.fn(),
   saveOutlookConfig: vi.fn(),
+  getSapConfig: vi.fn(),
+  saveSapConfig: vi.fn(),
 }))
 
 const mockGetOutlookConfig = vi.mocked(api.getOutlookConfig)
 const mockSaveOutlookConfig = vi.mocked(api.saveOutlookConfig)
+const mockGetSapConfig = vi.mocked(api.getSapConfig)
+const mockSaveSapConfig = vi.mocked(api.saveSapConfig)
 
 function notConfiguredError(): ApiError {
   return { status: 404, message: 'Outlook is not configured yet' }
@@ -21,6 +25,7 @@ describe('SettingsPanel — Outlook Connection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+    mockGetSapConfig.mockRejectedValue({ status: 404, message: 'SAP is not configured yet' })
   })
 
   it('leaves the fields blank when Outlook is not configured yet (404)', async () => {
@@ -99,13 +104,65 @@ describe('SettingsPanel — SAP Connection', () => {
     mockGetOutlookConfig.mockRejectedValue(notConfiguredError())
   })
 
-  it('shows a "not yet available" message when Connect to SAP is clicked', async () => {
-    const user = userEvent.setup()
+  it('pre-fills the SAP fields from the existing config without the password', async () => {
+    mockGetSapConfig.mockResolvedValue({
+      base_url: 'https://sap.example.com:44300',
+      client: '100',
+      username: 'TECH_USER',
+      verify_tls: false,
+      password_set: true,
+    })
+
     render(<SettingsPanel />)
 
-    expect(screen.queryByText('SAP integration is not yet available.')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Connect to SAP' }))
+    expect(await screen.findByDisplayValue('https://sap.example.com:44300')).toBeInTheDocument()
+    expect(screen.getByLabelText('SAP Client')).toHaveValue('100')
+    expect(screen.getByLabelText('SAP Username')).toHaveValue('TECH_USER')
+    expect(screen.getByLabelText('SAP Password')).toHaveValue('')
+    expect(screen.getByLabelText('SAP Password')).toHaveAttribute('placeholder', 'SAP Password: configured ✓')
+    expect(screen.getByLabelText("Verify the SAP server's TLS certificate")).not.toBeChecked()
+  })
 
-    expect(screen.getByText('SAP integration is not yet available.')).toBeInTheDocument()
+  it('saves the SAP config and clears the password field on success', async () => {
+    const user = userEvent.setup()
+    mockGetSapConfig.mockRejectedValue({ status: 404, message: 'SAP is not configured yet' })
+    mockSaveSapConfig.mockResolvedValue({
+      base_url: 'https://sap.example.com:44300',
+      client: '100',
+      username: 'TECH_USER',
+      verify_tls: false,
+      password_set: true,
+    })
+
+    render(<SettingsPanel />)
+    await waitFor(() => expect(mockGetSapConfig).toHaveBeenCalled())
+
+    await user.type(screen.getByLabelText('SAP Server URL'), 'https://sap.example.com:44300')
+    await user.type(screen.getByLabelText('SAP Client'), '100')
+    await user.type(screen.getByLabelText('SAP Username'), 'TECH_USER')
+    await user.type(screen.getByLabelText('SAP Password'), 'secret')
+    await user.click(screen.getByLabelText("Verify the SAP server's TLS certificate"))
+    await user.click(screen.getByRole('button', { name: 'Save SAP Connection' }))
+
+    await waitFor(() => expect(mockSaveSapConfig).toHaveBeenCalled())
+    expect(mockSaveSapConfig.mock.calls[0][2]).toEqual({
+      base_url: 'https://sap.example.com:44300',
+      client: '100',
+      username: 'TECH_USER',
+      password: 'secret',
+      verify_tls: false,
+    })
+    expect(screen.getByLabelText('SAP Password')).toHaveValue('')
+  })
+
+  it('shows an error banner when saving the SAP config fails', async () => {
+    const user = userEvent.setup()
+    mockGetSapConfig.mockRejectedValue({ status: 404, message: 'SAP is not configured yet' })
+    mockSaveSapConfig.mockRejectedValue({ status: 401, message: 'Invalid API key — check Settings' })
+
+    render(<SettingsPanel />)
+    await user.click(screen.getByRole('button', { name: 'Save SAP Connection' }))
+
+    expect(await screen.findByText('Invalid API key — check Settings')).toBeInTheDocument()
   })
 })

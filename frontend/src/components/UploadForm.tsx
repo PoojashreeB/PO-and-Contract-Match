@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Mail } from 'lucide-react'
-import { fetchFromOutlook } from '../api'
+import { Database, Mail } from 'lucide-react'
+import { fetchFromOutlook, fetchSapPoRecord } from '../api'
 import type { ValidateFiles } from '../api'
 import { base64ToFile } from '../download'
 import { getApiKey, getApiUrl } from '../storage'
@@ -10,6 +10,7 @@ import { Button } from './ui/Button'
 import { Card } from './ui/Card'
 import { FileDropzone } from './ui/FileDropzone'
 import { Spinner } from './ui/Spinner'
+import { TextField } from './ui/TextField'
 
 interface UploadFormProps {
   isLoading: boolean
@@ -26,6 +27,9 @@ export function UploadForm({ isLoading, errorMessage, onSubmit, onCancel }: Uplo
   const [sapRecordText, setSapRecordText] = useState<string | null>(null)
   const [isFetchingOutlook, setIsFetchingOutlook] = useState(false)
   const [outlookFetchError, setOutlookFetchError] = useState<string | null>(null)
+  const [sapPoNumber, setSapPoNumber] = useState('')
+  const [isFetchingSap, setIsFetchingSap] = useState(false)
+  const [sapFetchError, setSapFetchError] = useState<string | null>(null)
 
   async function handleSapFileChange(file: File | null) {
     setSapJsonFile(file)
@@ -53,6 +57,24 @@ export function UploadForm({ isLoading, errorMessage, onSubmit, onCancel }: Uplo
       setOutlookFetchError((error as ApiError).message)
     } finally {
       setIsFetchingOutlook(false)
+    }
+  }
+
+  async function handleFetchFromSap() {
+    const poNumber = sapPoNumber.trim()
+    if (!poNumber) return
+    setSapFetchError(null)
+    setIsFetchingSap(true)
+    try {
+      const record = await fetchSapPoRecord(getApiUrl(), getApiKey(), poNumber)
+      const text = JSON.stringify(record, null, 2)
+      setSapJsonFile(new File([text], `sap_po_${poNumber}.json`, { type: 'application/json' }))
+      setSapJsonError(null)
+      setSapRecordText(text)
+    } catch (error) {
+      setSapFetchError((error as ApiError).message)
+    } finally {
+      setIsFetchingSap(false)
     }
   }
 
@@ -85,6 +107,34 @@ export function UploadForm({ isLoading, errorMessage, onSubmit, onCancel }: Uplo
         {outlookFetchError && (
           <div className="mb-4">
             <Alert>{outlookFetchError}</Alert>
+          </div>
+        )}
+
+        <div className="mb-4 flex flex-wrap items-end gap-3 rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-700/40">
+          <div className="min-w-0 flex-1">
+            <TextField
+              id="sap-po-number"
+              label="SAP PO number"
+              type="text"
+              placeholder="4500000123"
+              value={sapPoNumber}
+              onChange={(e) => setSapPoNumber(e.target.value)}
+            />
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            icon={isFetchingSap ? <Spinner className="h-4 w-4" /> : <Database className="h-4 w-4" />}
+            onClick={() => void handleFetchFromSap()}
+            disabled={isFetchingSap || !sapPoNumber.trim()}
+          >
+            {isFetchingSap ? 'Fetching from SAP…' : 'Fetch from SAP'}
+          </Button>
+        </div>
+        {sapFetchError && (
+          <div className="mb-4">
+            <Alert>{sapFetchError}</Alert>
           </div>
         )}
 

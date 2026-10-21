@@ -9,9 +9,13 @@ vi.mock('./api', () => ({
   fetchFromOutlook: vi.fn(),
   getOutlookConfig: vi.fn(),
   saveOutlookConfig: vi.fn(),
+  fetchSapPoRecord: vi.fn(),
+  getSapConfig: vi.fn(),
+  saveSapConfig: vi.fn(),
 }))
 
 vi.mocked(api.getOutlookConfig).mockRejectedValue({ status: 404, message: 'Outlook is not configured yet' })
+vi.mocked(api.getSapConfig).mockRejectedValue({ status: 404, message: 'SAP is not configured yet' })
 
 describe('App navigation', () => {
   it('marks Upload as the active tab on load', () => {

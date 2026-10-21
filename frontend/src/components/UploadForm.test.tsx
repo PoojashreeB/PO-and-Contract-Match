@@ -6,9 +6,11 @@ import * as api from '../api'
 
 vi.mock('../api', () => ({
   fetchFromOutlook: vi.fn(),
+  fetchSapPoRecord: vi.fn(),
 }))
 
 const mockFetchFromOutlook = vi.mocked(api.fetchFromOutlook)
+const mockFetchSapPoRecord = vi.mocked(api.fetchSapPoRecord)
 
 function makeFile(name: string, content: string, type: string): File {
   return new File([content], name, { type })
@@ -155,5 +157,53 @@ describe('UploadForm', () => {
     expect(
       await screen.findByText('Outlook is not configured, or no matching email was found'),
     ).toBeInTheDocument()
+  })
+
+  it('keeps Fetch from SAP disabled until a PO number is entered', async () => {
+    const user = userEvent.setup()
+    render(
+      <UploadForm isLoading={false} errorMessage={null} onSubmit={vi.fn()} onCancel={vi.fn()} />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Fetch from SAP' })).toBeDisabled()
+    await user.type(screen.getByLabelText('SAP PO number'), '4500000123')
+    expect(screen.getByRole('button', { name: 'Fetch from SAP' })).toBeEnabled()
+  })
+
+  it('uses the record fetched from SAP as the SAP record on submit', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    mockFetchSapPoRecord.mockResolvedValue({ po_number: '4500000123', vendor_code: '89234' })
+    render(
+      <UploadForm isLoading={false} errorMessage={null} onSubmit={onSubmit} onCancel={vi.fn()} />,
+    )
+
+    await user.upload(screen.getByLabelText('Purchase Order (PDF)'), makeFile('po.pdf', 'x', 'application/pdf'))
+    await user.upload(screen.getByLabelText('Contract (PDF)'), makeFile('contract.pdf', 'y', 'application/pdf'))
+    await user.type(screen.getByLabelText('SAP PO number'), ' 4500000123 ')
+    await user.click(screen.getByRole('button', { name: 'Fetch from SAP' }))
+
+    expect(await screen.findByText('sap_po_4500000123.json')).toBeInTheDocument()
+    expect(mockFetchSapPoRecord.mock.calls[0][2]).toBe('4500000123')
+
+    await user.click(screen.getByRole('button', { name: 'Validate' }))
+    expect(JSON.parse(onSubmit.mock.calls[0][0].sapRecordText)).toEqual({
+      po_number: '4500000123',
+      vendor_code: '89234',
+    })
+  })
+
+  it('shows the error when Fetch from SAP fails', async () => {
+    const user = userEvent.setup()
+    mockFetchSapPoRecord.mockRejectedValue({ status: 404, message: 'PO 4500000999 was not found in SAP' })
+    render(
+      <UploadForm isLoading={false} errorMessage={null} onSubmit={vi.fn()} onCancel={vi.fn()} />,
+    )
+
+    await user.type(screen.getByLabelText('SAP PO number'), '4500000999')
+    await user.click(screen.getByRole('button', { name: 'Fetch from SAP' }))
+
+    expect(await screen.findByText('PO 4500000999 was not found in SAP')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Validate' })).toBeDisabled()
   })
 })

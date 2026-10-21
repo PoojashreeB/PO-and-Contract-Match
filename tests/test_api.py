@@ -14,8 +14,10 @@ from outlook.graph_client import (
 )
 from schemas.contract_schema import ContractDetails
 from schemas.discrepancy_schema import DiscrepancyItem, ValidationReport
+from sap.odata_client import PurchaseOrderNotFoundError, SapApiError, SapAuthError
 from schemas.outlook_schema import OutlookConfig
 from schemas.po_schema import PODetails
+from schemas.sap_schema import SapConfig
 
 client = TestClient(app)
 
@@ -259,3 +261,89 @@ def test_fetch_from_outlook_maps_missing_attachment_to_422(mock_load, mock_fetch
 def test_fetch_from_outlook_maps_graph_api_error_to_502(mock_load, mock_fetch):
     response = client.post("/outlook/fetch", headers={"X-API-Key": "test-key"})
     assert response.status_code == 502
+
+
+FAKE_SAP_CONFIG = SapConfig(
+    base_url="https://sap.example.com:44300",
+    client="100",
+    username="TECH_USER",
+    password="super-secret",
+)
+
+
+def test_get_sap_config_requires_api_key():
+    response = client.get("/sap/config")
+    assert response.status_code == 401
+
+
+@patch("api.main.load_sap_config", return_value=None)
+def test_get_sap_config_returns_404_when_not_configured(mock_load):
+    response = client.get("/sap/config", headers={"X-API-Key": "test-key"})
+    assert response.status_code == 404
+
+
+@patch("api.main.load_sap_config", return_value=FAKE_SAP_CONFIG)
+def test_get_sap_config_masks_the_password(mock_load):
+    response = client.get("/sap/config", headers={"X-API-Key": "test-key"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["password_set"] is True
+    assert "password" not in body
+    assert body["username"] == "TECH_USER"
+    assert body["verify_tls"] is True
+
+
+@patch("api.main.save_sap_config")
+def test_post_sap_config_saves_and_returns_masked_response(mock_save):
+    response = client.post(
+        "/sap/config",
+        headers={"X-API-Key": "test-key"},
+        json={
+            "base_url": "https://sap.example.com:44300",
+            "client": "100",
+            "username": "TECH_USER",
+            "password": "super-secret",
+            "verify_tls": False,
+        },
+    )
+    assert response.status_code == 200
+    assert "password" not in response.json()
+    saved_config = mock_save.call_args.args[0]
+    assert saved_config.password == "super-secret"
+    assert saved_config.verify_tls is False
+
+
+@patch("api.main.load_sap_config", return_value=None)
+def test_fetch_sap_po_record_returns_404_when_not_configured(mock_load):
+    response = client.post(
+        "/sap/po-record", headers={"X-API-Key": "test-key"}, json={"po_number": "4500000123"}
+    )
+    assert response.status_code == 404
+
+
+@patch("api.main.fetch_po_record", return_value={"po_number": "4500000123", "vendor_code": "89234"})
+@patch("api.main.load_sap_config", return_value=FAKE_SAP_CONFIG)
+def test_fetch_sap_po_record_returns_record_on_success(mock_load, mock_fetch):
+    response = client.post(
+        "/sap/po-record", headers={"X-API-Key": "test-key"}, json={"po_number": "4500000123"}
+    )
+    assert response.status_code == 200
+    assert response.json() == {"po_number": "4500000123", "vendor_code": "89234"}
+    mock_fetch.assert_called_once_with(FAKE_SAP_CONFIG, "4500000123")
+
+
+@pytest.mark.parametrize(
+    "error, status_code",
+    [
+        (SapAuthError("bad password"), 401),
+        (PurchaseOrderNotFoundError("PO 1 was not found in SAP"), 404),
+        (SapApiError("boom"), 502),
+    ],
+)
+@patch("api.main.load_sap_config", return_value=FAKE_SAP_CONFIG)
+def test_fetch_sap_po_record_maps_errors(mock_load, error, status_code):
+    with patch("api.main.fetch_po_record", side_effect=error):
+        response = client.post(
+            "/sap/po-record", headers={"X-API-Key": "test-key"}, json={"po_number": "1"}
+        )
+    assert response.status_code == status_code
