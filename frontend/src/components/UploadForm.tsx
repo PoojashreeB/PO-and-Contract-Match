@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Database, Mail } from 'lucide-react'
+import { Mail } from 'lucide-react'
 import { fetchFromOutlook, fetchSapPoRecord } from '../api'
 import type { ValidateFiles } from '../api'
 import { base64ToFile } from '../download'
@@ -22,29 +22,11 @@ interface UploadFormProps {
 export function UploadForm({ isLoading, errorMessage, onSubmit, onCancel }: UploadFormProps) {
   const [poPdfFile, setPoPdfFile] = useState<File | null>(null)
   const [contractPdfFile, setContractPdfFile] = useState<File | null>(null)
-  const [sapJsonFile, setSapJsonFile] = useState<File | null>(null)
-  const [sapJsonError, setSapJsonError] = useState<string | null>(null)
-  const [sapRecordText, setSapRecordText] = useState<string | null>(null)
   const [isFetchingOutlook, setIsFetchingOutlook] = useState(false)
   const [outlookFetchError, setOutlookFetchError] = useState<string | null>(null)
   const [sapPoNumber, setSapPoNumber] = useState('')
   const [isFetchingSap, setIsFetchingSap] = useState(false)
   const [sapFetchError, setSapFetchError] = useState<string | null>(null)
-
-  async function handleSapFileChange(file: File | null) {
-    setSapJsonFile(file)
-    setSapJsonError(null)
-    setSapRecordText(null)
-    if (!file) return
-
-    const text = await file.text()
-    try {
-      JSON.parse(text)
-      setSapRecordText(text)
-    } catch {
-      setSapJsonError('This file is not valid JSON.')
-    }
-  }
 
   async function handleFetchFromOutlook() {
     setOutlookFetchError(null)
@@ -60,34 +42,30 @@ export function UploadForm({ isLoading, errorMessage, onSubmit, onCancel }: Uplo
     }
   }
 
-  async function handleFetchFromSap() {
-    const poNumber = sapPoNumber.trim()
-    if (!poNumber) return
+  const poNumber = sapPoNumber.trim()
+  const canSubmit = Boolean(poPdfFile && contractPdfFile && poNumber) && !isLoading && !isFetchingSap
+
+  // The SAP record always comes straight from SAP at submit time, so the
+  // validation can't run against a stale or hand-edited copy.
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!poPdfFile || !contractPdfFile || !poNumber) return
     setSapFetchError(null)
     setIsFetchingSap(true)
+    let record
     try {
-      const record = await fetchSapPoRecord(getApiUrl(), getApiKey(), poNumber)
-      const text = JSON.stringify(record, null, 2)
-      setSapJsonFile(new File([text], `sap_po_${poNumber}.json`, { type: 'application/json' }))
-      setSapJsonError(null)
-      setSapRecordText(text)
+      record = await fetchSapPoRecord(getApiUrl(), getApiKey(), poNumber)
     } catch (error) {
       setSapFetchError((error as ApiError).message)
+      return
     } finally {
       setIsFetchingSap(false)
     }
-  }
-
-  const canSubmit = Boolean(poPdfFile && contractPdfFile && sapRecordText) && !isLoading
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!poPdfFile || !contractPdfFile || !sapRecordText) return
-    onSubmit({ poPdfFile, contractPdfFile, sapRecordText })
+    onSubmit({ poPdfFile, contractPdfFile, sapRecordText: JSON.stringify(record) })
   }
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+    <form className="flex flex-col gap-4" onSubmit={(e) => void handleSubmit(e)}>
       <Card title="Upload documents">
         <div className="mb-4 flex items-center justify-between gap-3 rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-700/40">
           <p className="text-sm text-slate-600 dark:text-slate-300">
@@ -110,35 +88,24 @@ export function UploadForm({ isLoading, errorMessage, onSubmit, onCancel }: Uplo
           </div>
         )}
 
-        <div className="mb-4 flex flex-wrap items-end gap-3 rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-700/40">
-          <div className="min-w-0 flex-1">
-            <TextField
-              id="sap-po-number"
-              label="SAP PO number"
-              type="text"
-              placeholder="4500000123"
-              value={sapPoNumber}
-              onChange={(e) => setSapPoNumber(e.target.value)}
-            />
-          </div>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            icon={isFetchingSap ? <Spinner className="h-4 w-4" /> : <Database className="h-4 w-4" />}
-            onClick={() => void handleFetchFromSap()}
-            disabled={isFetchingSap || !sapPoNumber.trim()}
-          >
-            {isFetchingSap ? 'Fetching from SAP…' : 'Fetch from SAP'}
-          </Button>
+        <div className="mb-4 rounded-md bg-slate-50 px-3 py-2 dark:bg-slate-700/40">
+          <TextField
+            id="sap-po-number"
+            label="SAP PO number"
+            type="text"
+            placeholder="4500000123"
+            value={sapPoNumber}
+            onChange={(e) => {
+              setSapPoNumber(e.target.value)
+              setSapFetchError(null)
+            }}
+          />
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            The SAP record is read directly from SAP when you click Validate.
+          </p>
         </div>
-        {sapFetchError && (
-          <div className="mb-4">
-            <Alert>{sapFetchError}</Alert>
-          </div>
-        )}
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <FileDropzone
             id="po-pdf"
             label="Purchase Order (PDF)"
@@ -153,25 +120,16 @@ export function UploadForm({ isLoading, errorMessage, onSubmit, onCancel }: Uplo
             value={contractPdfFile}
             onChange={setContractPdfFile}
           />
-          <div>
-            <FileDropzone
-              id="sap-json"
-              label="SAP Record (JSON)"
-              accept="application/json"
-              value={sapJsonFile}
-              onChange={(file) => void handleSapFileChange(file)}
-            />
-            {sapJsonError && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{sapJsonError}</p>}
-          </div>
         </div>
 
-        {!canSubmit && !isLoading && (
+        {!canSubmit && !isLoading && !isFetchingSap && (
           <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-            Select all three files (SAP record must be valid JSON) to continue.
+            Enter the SAP PO number and add both PDFs to continue.
           </p>
         )}
       </Card>
 
+      {sapFetchError && <Alert>{sapFetchError}</Alert>}
       {errorMessage && <Alert>{errorMessage}</Alert>}
 
       {isLoading ? (
@@ -185,8 +143,13 @@ export function UploadForm({ isLoading, errorMessage, onSubmit, onCancel }: Uplo
           </Button>
         </div>
       ) : (
-        <Button type="submit" disabled={!canSubmit} className="self-start">
-          Validate
+        <Button
+          type="submit"
+          disabled={!canSubmit}
+          className="self-start"
+          icon={isFetchingSap ? <Spinner className="h-4 w-4" /> : undefined}
+        >
+          {isFetchingSap ? 'Fetching PO from SAP…' : 'Validate'}
         </Button>
       )}
     </form>
