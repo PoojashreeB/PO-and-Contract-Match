@@ -29,8 +29,7 @@ export function UploadForm({ isLoading, errorMessage, onSubmit, onCancel }: Uplo
     <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
       <Card title="Upload documents">
         <p className="mb-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:bg-slate-700/40 dark:text-slate-300">
-          The PO number is read from the PO document, and its details are fetched from SAP when
-          you click Validate.
+          Provide the PO and Contract documents manually.
         </p>
 
         <div className="grid gap-4 sm:grid-cols-2">
