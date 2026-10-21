@@ -230,3 +230,29 @@ describe('fetchFromOutlook', () => {
     } satisfies ApiError)
   })
 })
+
+describe('responses that are not JSON', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  const htmlPage = () => new Response('<!doctype html><html></html>', { status: 200 })
+
+  it('explains an HTML response to validate as a wrong API URL', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlPage()))
+
+    await expect(validate('', 'my-key', files)).rejects.toMatchObject({
+      status: 200,
+      message: expect.stringContaining("doesn't point to the backend"),
+    })
+  })
+
+  it('explains an HTML response when loading a saved connection in Settings', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlPage()))
+
+    await expect(getOutlookConfig('', 'my-key')).rejects.toMatchObject({
+      status: 200,
+      message: expect.stringContaining("doesn't point to the backend"),
+    })
+  })
+})

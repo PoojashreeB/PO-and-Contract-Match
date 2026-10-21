@@ -14,6 +14,22 @@ export interface ValidateFiles {
   contractPdfFile: File
 }
 
+// A response that isn't JSON almost always means the API URL in Settings
+// points at the frontend (whose server answers with its own HTML page)
+// rather than the backend.
+async function parseJson<T>(response: Response): Promise<T> {
+  try {
+    return (await response.json()) as T
+  } catch {
+    const apiError: ApiError = {
+      status: response.status,
+      message:
+        "The API base URL in Settings doesn't point to the backend — set it to the backend's address, e.g. http://127.0.0.1:8000",
+    }
+    throw apiError
+  }
+}
+
 function messageForStatus(status: number, detail: unknown): string {
   if (status === 401) {
     return 'Invalid API key — check Settings'
@@ -77,7 +93,7 @@ export async function validate(
     throw apiError
   }
 
-  return (await response.json()) as ValidateResponse
+  return parseJson<ValidateResponse>(response)
 }
 
 function outlookMessageForStatus(status: number, detail: unknown): string {
@@ -135,7 +151,7 @@ async function outlookRequest<T>(
     throw apiError
   }
 
-  return (await response.json()) as T
+  return parseJson<T>(response)
 }
 
 export async function getOutlookConfig(
@@ -220,7 +236,7 @@ async function sapRequest<T>(
     throw apiError
   }
 
-  return (await response.json()) as T
+  return parseJson<T>(response)
 }
 
 export async function getSapConfig(baseUrl: string, apiKey: string): Promise<SapConfigResponse> {
