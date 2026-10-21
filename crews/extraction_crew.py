@@ -15,14 +15,15 @@ def run_extraction_crew(po_path: str, contract_path: str) -> tuple[PODetails, Co
             "Use the PDF Reader tool to read the Purchase Order document. "
             "Extract the following fields exactly as they appear: "
             "po_number, po_date, contract_period_start, contract_period_end, "
-            "contract_price, payment_terms, liquidated_damage, pricing_info, contact_info. "
+            "contract_price, payment_terms, liquidated_damage, pricing_info, contact_info, "
+            "vendor_name, vendor_code. "
             "Record any field you cannot locate clearly in confidence_notes. "
             "Return a JSON object matching the PODetails schema exactly."
         ),
         expected_output=(
             "A JSON object with keys: po_number, po_date, contract_period_start, "
             "contract_period_end, contract_price, payment_terms, liquidated_damage, "
-            "pricing_info, contact_info, confidence_notes."
+            "pricing_info, contact_info, vendor_name, vendor_code, confidence_notes."
         ),
         agent=po_agent,
         output_pydantic=PODetails,

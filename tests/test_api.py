@@ -29,6 +29,8 @@ FAKE_PO = PODetails(
     liquidated_damage="0.5% per week, max 5%",
     pricing_info="Fixed price",
     contact_info="procurement@clientco.com",
+    vendor_name="ABC Engineering Services Pvt. Ltd.",
+    vendor_code="VENDOR-0089234",
     confidence_notes="",
 )
 

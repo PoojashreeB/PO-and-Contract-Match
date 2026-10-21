@@ -24,6 +24,7 @@ def create_sample_po() -> None:
         ("Pricing:", "Fixed price contract, no escalation applicable"),
         ("Contact:", "procurement@clientco.com | +91-294-6604000"),
         ("Vendor:", "ABC Engineering Services Pvt. Ltd."),
+        ("Vendor Code:", "VENDOR-0089234"),
         ("Vendor Address:", "Plot 12, Industrial Area, Rivertown - 500001"),
     ]
     for label, value in fields:

@@ -11,4 +11,6 @@ class PODetails(BaseModel):
     liquidated_damage: str
     pricing_info: str
     contact_info: str
+    vendor_name: str
+    vendor_code: str
     confidence_notes: str
