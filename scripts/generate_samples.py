@@ -1,4 +1,4 @@
-from fpdf import FPDF
+from fpdf import FPDF, XPos, YPos
 from pathlib import Path
 
 
@@ -10,7 +10,7 @@ def create_sample_po() -> None:
     pdf.add_page()
 
     pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "PURCHASE ORDER", ln=True, align="C")
+    pdf.cell(0, 10, "PURCHASE ORDER", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
     pdf.ln(5)
 
     pdf.set_font("Helvetica", size=11)
@@ -31,11 +31,11 @@ def create_sample_po() -> None:
         pdf.set_font("Helvetica", "B", 11)
         pdf.cell(65, 8, label)
         pdf.set_font("Helvetica", size=11)
-        pdf.cell(0, 8, value, ln=True)
+        pdf.cell(0, 8, value, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     pdf.ln(5)
     pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 8, "Scope of Work:", ln=True)
+    pdf.cell(0, 8, "Scope of Work:", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font("Helvetica", size=10)
     pdf.multi_cell(
         0, 6,
@@ -54,10 +54,10 @@ def create_sample_contract() -> None:
     pdf.add_page()
 
     pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "CONTRACT AGREEMENT", ln=True, align="C")
+    pdf.cell(0, 10, "CONTRACT AGREEMENT", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
     pdf.ln(3)
     pdf.set_font("Helvetica", size=11)
-    pdf.cell(0, 8, "Contract Agreement No: CC-CONT-2025-001234", ln=True)
+    pdf.cell(0, 8, "Contract Agreement No: CC-CONT-2025-001234", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.ln(3)
 
     sections = [
@@ -108,7 +108,7 @@ def create_sample_contract() -> None:
 
     for heading, body in sections:
         pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(0, 8, heading, ln=True)
+        pdf.cell(0, 8, heading, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.set_font("Helvetica", size=10)
         pdf.multi_cell(0, 6, body)
         pdf.ln(3)

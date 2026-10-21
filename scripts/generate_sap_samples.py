@@ -13,7 +13,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from fpdf import FPDF
+from fpdf import FPDF, XPos, YPos
 
 from sap.config_store import load_config
 from sap.rfc_client import _alpha_in, _connection_params, _load_pyrfc, _quote, _read_table, fetch_po_record
@@ -72,7 +72,7 @@ def create_po(
     pdf.add_page()
 
     pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "PURCHASE ORDER", ln=True, align="C")
+    pdf.cell(0, 10, "PURCHASE ORDER", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
     pdf.ln(5)
 
     if _has_period(record):
@@ -96,11 +96,11 @@ def create_po(
         pdf.set_font("Helvetica", "B", 11)
         pdf.cell(65, 8, label)
         pdf.set_font("Helvetica", size=11)
-        pdf.cell(0, 8, value, ln=True)
+        pdf.cell(0, 8, value, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     pdf.ln(5)
     pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 8, "Line Items:", ln=True)
+    pdf.cell(0, 8, "Line Items:", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font("Helvetica", size=10)
     for line in _item_lines(items, currency):
         pdf.multi_cell(0, 6, line)
@@ -122,10 +122,10 @@ def create_contract(
     pdf.add_page()
 
     pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "CONTRACT AGREEMENT", ln=True, align="C")
+    pdf.cell(0, 10, "CONTRACT AGREEMENT", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
     pdf.ln(3)
     pdf.set_font("Helvetica", size=11)
-    pdf.cell(0, 8, f"Contract Agreement No: {record['po_number']}", ln=True)
+    pdf.cell(0, 8, f"Contract Agreement No: {record['po_number']}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.ln(3)
 
     if _has_period(record):
@@ -169,7 +169,7 @@ def create_contract(
 
     for heading, body in sections:
         pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(0, 8, heading, ln=True)
+        pdf.cell(0, 8, heading, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.set_font("Helvetica", size=10)
         pdf.multi_cell(0, 6, body)
         pdf.ln(3)

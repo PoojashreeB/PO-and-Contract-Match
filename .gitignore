@@ -12,3 +12,6 @@ config/sap_config.json
 # SAP NW RFC SDK trace/log files
 dev_rfc*.log
 *.trc
+
+# CrewAI local run data
+.crewai/
