@@ -20,24 +20,11 @@ from sap.rfc_client import _alpha_in, _connection_params, _load_pyrfc, _quote, _
 
 INPUT_DIR = Path(__file__).parent.parent / "input"
 
-# SAP has no T052U text for these keys on A4F; standard S/4HANA meanings.
-PAYMENT_TERMS_TEXT = {
-    "0001": "Payable immediately without deduction",
-    "0002": "Within 14 days 3% cash discount, within 30 days 2%, within 45 days net",
-    "0004": "Payable on the 15th of the following month",
-}
-
 LIQUIDATED_DAMAGE = "0.5% per week of delay, maximum 5% of contract value"
 
 
 def _display_date(iso: str) -> str:
     return date.fromisoformat(iso).strftime("%d-%b-%Y") if iso else ""
-
-
-def _payment_terms(record: dict[str, str]) -> str:
-    terms = record.get("payment_terms", "")
-    key = terms.removeprefix("Payment terms key ")
-    return PAYMENT_TERMS_TEXT.get(key, terms) if key != terms else terms
 
 
 def _read_details(po_number: str) -> tuple[list[dict[str, str]], dict[str, str], str]:
@@ -98,7 +85,7 @@ def create_po(
         ("PO Date:", _display_date(record.get("po_date", ""))),
         schedule,
         ("Contract Price:", record.get("contract_price", "")),
-        ("Payment Terms:", _payment_terms(record)),
+        ("Payment Terms:", record.get("payment_terms", "")),
         ("Liquidated Damage:", LIQUIDATED_DAMAGE),
         ("Pricing:", "Fixed unit rate, no escalation applicable"),
         ("Vendor:", record.get("vendor_name", "")),
@@ -170,7 +157,7 @@ def create_contract(
         ),
         (
             "4. PAYMENT TERMS",
-            f"{_payment_terms(record)}, on receipt of a valid invoice.",
+            f"{record.get('payment_terms', '')}, on receipt of a valid invoice.",
         ),
         (
             "5. LIQUIDATED DAMAGES",

@@ -86,16 +86,41 @@ def _read_table(connection, table: str, fields: list[str], where: str) -> list[d
     ]
 
 
-def _payment_terms(header: dict[str, str]) -> str:
-    net_days = max(_to_decimal(header.get(field, "")) for field in ("ZBD1T", "ZBD2T", "ZBD3T"))
+# Purchase orders (F), contracts (K) and scheduling agreements (L); other
+# purchasing documents in EKKO aren't something a PO can be validated against.
+PURCHASING_DOCUMENT_TYPES = ("F", "K", "L")
+
+
+def _has_payment_days(header: dict[str, str]) -> bool:
+    return any(_to_decimal(header.get(field, "")) for field in ("ZBD1T", "ZBD2T", "ZBD3T"))
+
+
+def _payment_terms(header: dict[str, str], terms_text: str) -> str:
+    # The PO's own cash-discount tiers (ZBD1T/ZBD1P, ZBD2T/ZBD2P) and net
+    # days (ZBD3T, or the latest tier without a discount). Terms with no days,
+    # e.g. "pay immediately" or "end of month", fall back to SAP's text.
+    discounts = []
+    undiscounted_days = []
+    for tier in ("1", "2"):
+        days = _to_decimal(header.get(f"ZBD{tier}T", ""))
+        percent = _to_decimal(header.get(f"ZBD{tier}P", ""))
+        if days and percent:
+            discounts.append(f"{int(days)} days {percent.normalize():f}%")
+        elif days:
+            undiscounted_days.append(days)
+    net_days = _to_decimal(header.get("ZBD3T", "")) or max(undiscounted_days, default=Decimal(0))
+    if discounts:
+        return ", ".join(discounts + ([f"net {int(net_days)} days"] if net_days else []))
     if net_days:
         return f"Net {int(net_days)} days"
     code = header.get("ZTERM", "")
-    return f"Payment terms key {code}" if code else ""
+    return terms_text or (f"Payment terms key {code}" if code else "")
 
 
-def _sum_field(items: list[dict[str, str]], field: str) -> Decimal:
-    return sum((_to_decimal(item.get(field, "")) for item in items), Decimal(0))
+def _net_value(item: dict[str, str]) -> Decimal:
+    # A returns item (RETPO) credits the vendor, so it reduces the PO's value.
+    value = _to_decimal(item.get("NETWR", ""))
+    return -value if item.get("RETPO") else value
 
 
 def _document_value(header: dict[str, str], items: list[dict[str, str]]) -> Decimal:
@@ -103,12 +128,13 @@ def _document_value(header: dict[str, str], items: list[dict[str, str]]) -> Deci
     # value (NETWR is 0); their value is the target value, kept on the
     # header (KTWRT) or, when that's blank, per item (ZWERT).
     if header.get("BSTYP") in ("K", "L"):
-        return _to_decimal(header.get("KTWRT", "")) or _sum_field(items, "ZWERT")
-    return _sum_field(items, "NETWR")
+        target = _to_decimal(header.get("KTWRT", ""))
+        return target or sum((_to_decimal(item.get("ZWERT", "")) for item in items), Decimal(0))
+    return sum((_net_value(item) for item in items), Decimal(0))
 
 
 def _map_purchase_order(
-    header: dict[str, str], items: list[dict[str, str]], vendor_name: str
+    header: dict[str, str], items: list[dict[str, str]], vendor_name: str, terms_text: str
 ) -> dict[str, str]:
     active_items = [item for item in items if not item.get("LOEKZ")]
     total = _document_value(header, active_items)
@@ -119,7 +145,7 @@ def _map_purchase_order(
         "contract_period_start": _format_date(header.get("KDATB", "")),
         "contract_period_end": _format_date(header.get("KDATE", "")),
         "contract_price": f"{currency} {total:,.2f}".strip() if active_items or total else "",
-        "payment_terms": _payment_terms(header),
+        "payment_terms": _payment_terms(header, terms_text),
         "vendor_name": vendor_name,
         "vendor_code": _alpha_out(header.get("LIFNR", "")),
     }
@@ -135,6 +161,18 @@ def _fetch_vendor_name(connection, pyrfc, vendor: str) -> str:
     except pyrfc.RFCError:
         return ""
     return rows[0]["NAME1"] if rows else ""
+
+
+def _fetch_payment_terms_text(connection, pyrfc, code: str) -> str:
+    # Best effort, like the vendor name: TVZBT holds the English description
+    # of a payment terms key, e.g. "As of End of Month".
+    if not code:
+        return ""
+    try:
+        rows = _read_table(connection, "TVZBT", ["VTEXT"], f"SPRAS = 'E' AND ZTERM = {_quote(code)}")
+    except pyrfc.RFCError:
+        return ""
+    return rows[0]["VTEXT"] if rows else ""
 
 
 def _connection_params(config: SapConfig) -> dict[str, str]:
@@ -165,15 +203,28 @@ def fetch_po_record(config: SapConfig, po_number: str) -> dict[str, str]:
                 connection,
                 "EKKO",
                 [
-                    "EBELN", "BSTYP", "BEDAT", "LIFNR", "ZTERM", "ZBD1T", "ZBD2T", "ZBD3T",
-                    "WAERS", "KDATB", "KDATE", "KTWRT",
+                    "EBELN", "BSTYP", "LOEKZ", "BEDAT", "LIFNR", "ZTERM", "ZBD1T", "ZBD1P",
+                    "ZBD2T", "ZBD2P", "ZBD3T", "WAERS", "KDATB", "KDATE", "KTWRT",
                 ],
                 f"EBELN = {po_key}",
             )
             if not headers:
                 raise PurchaseOrderNotFoundError(f"PO {po_number} was not found in SAP")
-            items = _read_table(connection, "EKPO", ["EBELP", "NETWR", "ZWERT", "LOEKZ"], f"EBELN = {po_key}")
-            vendor_name = _fetch_vendor_name(connection, pyrfc, headers[0].get("LIFNR", ""))
+            header = headers[0]
+            if header.get("LOEKZ"):
+                raise PurchaseOrderNotFoundError(f"PO {po_number} is marked for deletion in SAP")
+            if header.get("BSTYP") not in PURCHASING_DOCUMENT_TYPES:
+                raise PurchaseOrderNotFoundError(
+                    f"{po_number} is not a purchase order, contract or scheduling agreement in SAP"
+                )
+            items = _read_table(
+                connection, "EKPO", ["EBELP", "NETWR", "ZWERT", "RETPO", "LOEKZ"], f"EBELN = {po_key}"
+            )
+            vendor_name = _fetch_vendor_name(connection, pyrfc, header.get("LIFNR", ""))
+            terms_text = (
+                "" if _has_payment_days(header)
+                else _fetch_payment_terms_text(connection, pyrfc, header.get("ZTERM", ""))
+            )
     except pyrfc.LogonError as error:
         raise SapAuthError(_error_message(error)) from error
     except pyrfc.CommunicationError as error:
@@ -181,4 +232,4 @@ def fetch_po_record(config: SapConfig, po_number: str) -> dict[str, str]:
     except pyrfc.RFCError as error:
         raise SapApiError(f"SAP returned an error: {_error_message(error)}") from error
 
-    return _map_purchase_order(headers[0], items, vendor_name)
+    return _map_purchase_order(header, items, vendor_name, terms_text)

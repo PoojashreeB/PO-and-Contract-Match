@@ -23,6 +23,7 @@ CONFIG = SapConfig(
 
 EKKO_ROW = {
     "EBELN": "4500000123",
+    "BSTYP": "F",
     "BEDAT": "20250815",
     "LIFNR": "0000089234",
     "ZTERM": "0002",
@@ -220,6 +221,71 @@ def test_fetch_falls_back_to_payment_terms_key_without_days(monkeypatch):
     record = fetch_po_record(CONFIG, "4500000123")
 
     assert record["payment_terms"] == "Payment terms key 0002"
+
+
+def test_fetch_describes_cash_discount_tiers(monkeypatch):
+    header = {**EKKO_ROW, "ZBD1T": "14", "ZBD1P": "2.000", "ZBD2T": "30", "ZBD2P": "0.000", "ZBD3T": "0"}
+    _fake_pyrfc(monkeypatch, _all_tables(EKKO=[header]))
+
+    record = fetch_po_record(CONFIG, "4500000123")
+
+    assert record["payment_terms"] == "14 days 2%, net 30 days"
+
+
+def test_fetch_describes_two_discounts_and_net_days(monkeypatch):
+    header = {**EKKO_ROW, "ZBD1T": "14", "ZBD1P": "3.000", "ZBD2T": "20", "ZBD2P": "2.000", "ZBD3T": "30"}
+    _fake_pyrfc(monkeypatch, _all_tables(EKKO=[header]))
+
+    record = fetch_po_record(CONFIG, "4500000123")
+
+    assert record["payment_terms"] == "14 days 3%, 20 days 2%, net 30 days"
+
+
+def test_fetch_uses_sap_text_for_payment_terms_without_days(monkeypatch):
+    header = {**EKKO_ROW, "ZTERM": "0004", "ZBD1T": "0", "ZBD2T": "0", "ZBD3T": "0"}
+    calls, _ = _fake_pyrfc(
+        monkeypatch, _all_tables(EKKO=[header], TVZBT=[{"VTEXT": "As of End of Month"}])
+    )
+
+    record = fetch_po_record(CONFIG, "4500000123")
+
+    assert record["payment_terms"] == "As of End of Month"
+    assert calls[-1]["OPTIONS"] == [{"TEXT": "SPRAS = 'E' AND ZTERM = '0004'"}]
+
+
+def test_fetch_falls_back_to_key_when_payment_terms_text_lookup_fails(monkeypatch):
+    header = {**EKKO_ROW, "ZTERM": "0004", "ZBD1T": "0", "ZBD2T": "0", "ZBD3T": "0"}
+    _fake_pyrfc(monkeypatch, _all_tables(EKKO=[header], TVZBT=ABAPApplicationError("NOT_AUTHORIZED")))
+
+    record = fetch_po_record(CONFIG, "4500000123")
+
+    assert record["payment_terms"] == "Payment terms key 0004"
+
+
+def test_fetch_subtracts_returns_items(monkeypatch):
+    items = [
+        {"EBELP": "00010", "NETWR": "100.00", "RETPO": "", "LOEKZ": ""},
+        {"EBELP": "00020", "NETWR": "30.00", "RETPO": "X", "LOEKZ": ""},
+    ]
+    _fake_pyrfc(monkeypatch, _all_tables(EKPO=items))
+
+    record = fetch_po_record(CONFIG, "4500000123")
+
+    assert record["contract_price"] == "INR 70.00"
+
+
+def test_fetch_rejects_po_marked_for_deletion(monkeypatch):
+    _fake_pyrfc(monkeypatch, _all_tables(EKKO=[{**EKKO_ROW, "LOEKZ": "X"}]))
+
+    with pytest.raises(PurchaseOrderNotFoundError, match="marked for deletion"):
+        fetch_po_record(CONFIG, "4500000123")
+
+
+def test_fetch_rejects_other_purchasing_documents(monkeypatch):
+    _fake_pyrfc(monkeypatch, _all_tables(EKKO=[{**EKKO_ROW, "BSTYP": "A"}]))
+
+    with pytest.raises(PurchaseOrderNotFoundError, match="not a purchase order"):
+        fetch_po_record(CONFIG, "4500000123")
 
 
 def test_fetch_leaves_out_initial_dates(monkeypatch):
