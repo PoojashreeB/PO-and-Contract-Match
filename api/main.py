@@ -45,7 +45,15 @@ app = FastAPI(title="PO and Contract Match API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.environ.get("FRONTEND_ORIGIN", "http://localhost:5173")],
+    # Comma-separated. The default covers the Vite dev server under both
+    # names, since some browsers resolve "localhost" to IPv6 only.
+    allow_origins=[
+        origin.strip()
+        for origin in os.environ.get(
+            "FRONTEND_ORIGIN", "http://localhost:5173,http://127.0.0.1:5173"
+        ).split(",")
+        if origin.strip()
+    ],
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type", "X-API-Key"],
 )

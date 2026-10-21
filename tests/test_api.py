@@ -393,3 +393,21 @@ def test_fetch_sap_po_record_maps_errors(mock_load, error, status_code):
             "/sap/po-record", headers={"X-API-Key": "test-key"}, json={"po_number": "1"}
         )
     assert response.status_code == status_code
+
+
+@pytest.mark.parametrize("origin", ["http://localhost:5173", "http://127.0.0.1:5173"])
+def test_cors_allows_the_dev_server_under_both_names(origin):
+    response = client.options(
+        "/validate",
+        headers={"Origin": origin, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "x-api-key"},
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
+
+
+def test_cors_rejects_other_origins():
+    response = client.options(
+        "/validate",
+        headers={"Origin": "http://evil.example", "Access-Control-Request-Method": "POST"},
+    )
+    assert "access-control-allow-origin" not in response.headers
