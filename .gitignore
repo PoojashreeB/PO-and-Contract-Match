@@ -9,3 +9,6 @@ output/*.json
 *.pdf
 config/outlook_config.json
 config/sap_config.json
+# SAP NW RFC SDK trace/log files
+dev_rfc*.log
+*.trc

@@ -14,7 +14,7 @@ from outlook.graph_client import (
 )
 from schemas.contract_schema import ContractDetails
 from schemas.discrepancy_schema import DiscrepancyItem, ValidationReport
-from sap.odata_client import PurchaseOrderNotFoundError, SapApiError, SapAuthError
+from sap.rfc_client import PurchaseOrderNotFoundError, SapApiError, SapAuthError
 from schemas.outlook_schema import OutlookConfig
 from schemas.po_schema import PODetails
 from schemas.sap_schema import SapConfig
@@ -264,7 +264,8 @@ def test_fetch_from_outlook_maps_graph_api_error_to_502(mock_load, mock_fetch):
 
 
 FAKE_SAP_CONFIG = SapConfig(
-    base_url="https://sap.example.com:44300",
+    ashost="sap.example.com",
+    sysnr="00",
     client="100",
     username="TECH_USER",
     password="super-secret",
@@ -290,7 +291,8 @@ def test_get_sap_config_masks_the_password(mock_load):
     assert body["password_set"] is True
     assert "password" not in body
     assert body["username"] == "TECH_USER"
-    assert body["verify_tls"] is True
+    assert body["sysnr"] == "00"
+    assert body["gwhost"] == ""
 
 
 @patch("api.main.save_sap_config")
@@ -299,18 +301,18 @@ def test_post_sap_config_saves_and_returns_masked_response(mock_save):
         "/sap/config",
         headers={"X-API-Key": "test-key"},
         json={
-            "base_url": "https://sap.example.com:44300",
+            "ashost": "sap.example.com",
+            "sysnr": "00",
             "client": "100",
             "username": "TECH_USER",
             "password": "super-secret",
-            "verify_tls": False,
         },
     )
     assert response.status_code == 200
     assert "password" not in response.json()
     saved_config = mock_save.call_args.args[0]
     assert saved_config.password == "super-secret"
-    assert saved_config.verify_tls is False
+    assert saved_config.ashost == "sap.example.com"
 
 
 @patch("api.main.load_sap_config", return_value=None)

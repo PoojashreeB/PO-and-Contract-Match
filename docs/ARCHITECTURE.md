@@ -232,7 +232,7 @@ Well within the 240K agent action budget specified in the ClientCo infrastructur
 ## Out of Scope (this build)
 
 - UiPath integration
-- SAP connectivity from the CLI (`main.py` still reads `config/sap_po_record.json`; the REST API can fetch the record live from S/4HANA via `POST /sap/po-record` — see `sap/odata_client.py`)
+- SAP connectivity from the CLI (`main.py` still reads `config/sap_po_record.json`; the REST API can fetch the record live from SAP over RFC via `POST /sap/po-record` — see `sap/rfc_client.py`)
 - CLI argument parsing (paths are hardcoded in `main.py`)
 - Retry logic / error recovery
 - Non-English documents

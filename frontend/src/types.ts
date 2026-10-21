@@ -54,18 +54,22 @@ export interface OutlookFetchResponse {
 }
 
 export interface SapConfigInput {
-  base_url: string
+  ashost: string
+  sysnr: string
   client: string
   username: string
   password: string
-  verify_tls: boolean
+  gwhost: string
+  gwserv: string
 }
 
 export interface SapConfigResponse {
-  base_url: string
+  ashost: string
+  sysnr: string
   client: string
   username: string
-  verify_tls: boolean
+  gwhost: string
+  gwserv: string
   password_set: boolean
 }
 

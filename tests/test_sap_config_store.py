@@ -4,7 +4,8 @@ from sap.config_store import load_config, save_config
 
 def _make_config() -> SapConfig:
     return SapConfig(
-        base_url="https://sap.example.com:44300",
+        ashost="sap.example.com",
+        sysnr="00",
         client="100",
         username="TECH_USER",
         password="super-secret",
@@ -28,4 +29,3 @@ def test_save_and_load_config_round_trip(tmp_path, monkeypatch):
     loaded = load_config()
 
     assert loaded == config
-    assert loaded.verify_tls is True

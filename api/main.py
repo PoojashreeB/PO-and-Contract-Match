@@ -29,7 +29,7 @@ from outlook.graph_client import (
 )
 from sap.config_store import load_config as load_sap_config
 from sap.config_store import save_config as save_sap_config
-from sap.odata_client import (
+from sap.rfc_client import (
     PurchaseOrderNotFoundError,
     SapApiError,
     SapAuthError,
@@ -184,10 +184,12 @@ def fetch_from_outlook() -> OutlookFetchResponse:
 
 
 class SapConfigResponse(BaseModel):
-    base_url: str
+    ashost: str
+    sysnr: str
     client: str
     username: str
-    verify_tls: bool
+    gwhost: str
+    gwserv: str
     password_set: bool
 
 
@@ -197,10 +199,12 @@ class SapPoRecordRequest(BaseModel):
 
 def _to_sap_config_response(config: SapConfig) -> SapConfigResponse:
     return SapConfigResponse(
-        base_url=config.base_url,
+        ashost=config.ashost,
+        sysnr=config.sysnr,
         client=config.client,
         username=config.username,
-        verify_tls=config.verify_tls,
+        gwhost=config.gwhost,
+        gwserv=config.gwserv,
         password_set=True,
     )
 

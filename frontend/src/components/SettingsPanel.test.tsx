@@ -106,51 +106,59 @@ describe('SettingsPanel — SAP Connection', () => {
 
   it('pre-fills the SAP fields from the existing config without the password', async () => {
     mockGetSapConfig.mockResolvedValue({
-      base_url: 'https://sap.example.com:44300',
+      ashost: 'sap.example.com',
+      sysnr: '57',
       client: '100',
       username: 'TECH_USER',
-      verify_tls: false,
+      gwhost: '',
+      gwserv: '',
       password_set: true,
     })
 
     render(<SettingsPanel />)
 
-    expect(await screen.findByDisplayValue('https://sap.example.com:44300')).toBeInTheDocument()
+    expect(await screen.findByDisplayValue('sap.example.com')).toBeInTheDocument()
+    expect(screen.getByLabelText('SAP System Number')).toHaveValue('57')
     expect(screen.getByLabelText('SAP Client')).toHaveValue('100')
     expect(screen.getByLabelText('SAP Username')).toHaveValue('TECH_USER')
     expect(screen.getByLabelText('SAP Password')).toHaveValue('')
     expect(screen.getByLabelText('SAP Password')).toHaveAttribute('placeholder', 'SAP Password: configured ✓')
-    expect(screen.getByLabelText("Verify the SAP server's TLS certificate")).not.toBeChecked()
   })
 
   it('saves the SAP config and clears the password field on success', async () => {
     const user = userEvent.setup()
     mockGetSapConfig.mockRejectedValue({ status: 404, message: 'SAP is not configured yet' })
     mockSaveSapConfig.mockResolvedValue({
-      base_url: 'https://sap.example.com:44300',
+      ashost: 'sap.example.com',
+      sysnr: '57',
       client: '100',
       username: 'TECH_USER',
-      verify_tls: false,
+      gwhost: '',
+      gwserv: '',
       password_set: true,
     })
 
     render(<SettingsPanel />)
     await waitFor(() => expect(mockGetSapConfig).toHaveBeenCalled())
 
-    await user.type(screen.getByLabelText('SAP Server URL'), 'https://sap.example.com:44300')
+    await user.type(screen.getByLabelText('SAP Application Server'), 'sap.example.com')
+    await user.type(screen.getByLabelText('SAP System Number'), '57')
     await user.type(screen.getByLabelText('SAP Client'), '100')
     await user.type(screen.getByLabelText('SAP Username'), 'TECH_USER')
     await user.type(screen.getByLabelText('SAP Password'), 'secret')
-    await user.click(screen.getByLabelText("Verify the SAP server's TLS certificate"))
+    await user.type(screen.getByLabelText('SAP Gateway Host (optional)'), '10.0.0.5')
+    await user.type(screen.getByLabelText('SAP Gateway Service (optional)'), 'sapgw57')
     await user.click(screen.getByRole('button', { name: 'Save SAP Connection' }))
 
     await waitFor(() => expect(mockSaveSapConfig).toHaveBeenCalled())
     expect(mockSaveSapConfig.mock.calls[0][2]).toEqual({
-      base_url: 'https://sap.example.com:44300',
+      ashost: 'sap.example.com',
+      sysnr: '57',
       client: '100',
       username: 'TECH_USER',
       password: 'secret',
-      verify_tls: false,
+      gwhost: '10.0.0.5',
+      gwserv: 'sapgw57',
     })
     expect(screen.getByLabelText('SAP Password')).toHaveValue('')
   })

@@ -23,11 +23,13 @@ export function SettingsPanel() {
   const [outlookSaved, setOutlookSaved] = useState(false)
   const [outlookError, setOutlookError] = useState<string | null>(null)
 
-  const [sapBaseUrl, setSapBaseUrl] = useState('')
+  const [sapAshost, setSapAshost] = useState('')
+  const [sapSysnr, setSapSysnr] = useState('')
   const [sapClient, setSapClient] = useState('')
   const [sapUsername, setSapUsername] = useState('')
   const [sapPassword, setSapPassword] = useState('')
-  const [sapVerifyTls, setSapVerifyTls] = useState(true)
+  const [sapGwhost, setSapGwhost] = useState('')
+  const [sapGwserv, setSapGwserv] = useState('')
   const [sapPasswordSet, setSapPasswordSet] = useState(false)
   const [sapSaved, setSapSaved] = useState(false)
   const [sapError, setSapError] = useState<string | null>(null)
@@ -37,10 +39,12 @@ export function SettingsPanel() {
     getSapConfig(apiUrl, apiKey)
       .then((config) => {
         if (cancelled) return
-        setSapBaseUrl(config.base_url)
+        setSapAshost(config.ashost)
+        setSapSysnr(config.sysnr)
         setSapClient(config.client)
         setSapUsername(config.username)
-        setSapVerifyTls(config.verify_tls)
+        setSapGwhost(config.gwhost)
+        setSapGwserv(config.gwserv)
         setSapPasswordSet(config.password_set)
       })
       .catch((error: ApiError) => {
@@ -102,11 +106,13 @@ export function SettingsPanel() {
     setSapError(null)
     try {
       const result = await saveSapConfig(apiUrl, apiKey, {
-        base_url: sapBaseUrl.trim(),
+        ashost: sapAshost.trim(),
+        sysnr: sapSysnr.trim(),
         client: sapClient.trim(),
         username: sapUsername.trim(),
         password: sapPassword,
-        verify_tls: sapVerifyTls,
+        gwhost: sapGwhost.trim(),
+        gwserv: sapGwserv.trim(),
       })
       setSapPasswordSet(result.password_set)
       setSapPassword('')
@@ -227,16 +233,27 @@ export function SettingsPanel() {
       <Card title="SAP Connection" icon={<Database className="h-4 w-4 text-slate-400" aria-hidden="true" />}>
         <div className="flex flex-col gap-3">
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Reads POs through the S/4HANA Purchase Order API (API_PURCHASEORDER_PROCESS_SRV).
+            Reads POs over RFC from tables EKKO, EKPO and LFA1.
           </p>
           <TextField
-            id="sap-base-url"
-            label="SAP Server URL"
+            id="sap-ashost"
+            label="SAP Application Server"
             type="text"
-            placeholder="https://sap.example.com:44300"
-            value={sapBaseUrl}
+            placeholder="sapserver.example.com"
+            value={sapAshost}
             onChange={(e) => {
-              setSapBaseUrl(e.target.value)
+              setSapAshost(e.target.value)
+              setSapSaved(false)
+            }}
+          />
+          <TextField
+            id="sap-sysnr"
+            label="SAP System Number"
+            type="text"
+            placeholder="00"
+            value={sapSysnr}
+            onChange={(e) => {
+              setSapSysnr(e.target.value)
               setSapSaved(false)
             }}
           />
@@ -272,17 +289,28 @@ export function SettingsPanel() {
               setSapSaved(false)
             }}
           />
-          <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-            <input
-              type="checkbox"
-              checked={sapVerifyTls}
-              onChange={(e) => {
-                setSapVerifyTls(e.target.checked)
-                setSapSaved(false)
-              }}
-            />
-            Verify the SAP server's TLS certificate
-          </label>
+          <TextField
+            id="sap-gwhost"
+            label="SAP Gateway Host (optional)"
+            type="text"
+            placeholder="Only if the server name doesn't resolve here"
+            value={sapGwhost}
+            onChange={(e) => {
+              setSapGwhost(e.target.value)
+              setSapSaved(false)
+            }}
+          />
+          <TextField
+            id="sap-gwserv"
+            label="SAP Gateway Service (optional)"
+            type="text"
+            placeholder="sapgw00"
+            value={sapGwserv}
+            onChange={(e) => {
+              setSapGwserv(e.target.value)
+              setSapSaved(false)
+            }}
+          />
           <div className="flex items-center gap-2">
             <Button size="sm" onClick={() => void handleSaveSapConfig()}>
               Save SAP Connection
