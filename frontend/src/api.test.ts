@@ -9,7 +9,6 @@ function makeFile(name: string, content: string, type: string): File {
 const files = {
   poPdfFile: makeFile('po.pdf', '%PDF-1.4', 'application/pdf'),
   contractPdfFile: makeFile('contract.pdf', '%PDF-1.4', 'application/pdf'),
-  sapRecordText: '{"po_number": "CC-PO-2025-001234"}',
 }
 
 describe('validate', () => {
@@ -35,7 +34,7 @@ describe('validate', () => {
     const body = options.body as FormData
     expect(body.get('po_pdf')).toBeInstanceOf(File)
     expect(body.get('contract_pdf')).toBeInstanceOf(File)
-    expect(body.get('sap_record')).toBe(files.sapRecordText)
+    expect(body.has('sap_record')).toBe(false)
   })
 
   it('returns the parsed response on success', async () => {
@@ -58,17 +57,20 @@ describe('validate', () => {
     } satisfies ApiError)
   })
 
-  it('maps a 400 response to the API detail message', async () => {
+  it.each([
+    [400, 'SAP is not configured yet — set up the SAP connection in Settings'],
+    [404, 'PO 4599999999 was not found in SAP (PO number read from the PO document: 4599999999)'],
+    [422, 'Could not read a PO number from the PO document'],
+    [502, 'Could not reach SAP: timed out'],
+  ])('maps a %i response to the API detail message', async (status, detail) => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ detail: 'sap_record must be valid JSON' }), { status: 400 }),
-      ),
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail }), { status })),
     )
 
     await expect(validate('http://localhost:8000', 'my-key', files)).rejects.toMatchObject({
-      status: 400,
-      message: 'sap_record must be valid JSON',
+      status,
+      message: detail,
     } satisfies ApiError)
   })
 

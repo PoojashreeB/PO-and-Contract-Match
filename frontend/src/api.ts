@@ -12,15 +12,19 @@ import type {
 export interface ValidateFiles {
   poPdfFile: File
   contractPdfFile: File
-  sapRecordText: string
 }
 
 function messageForStatus(status: number, detail: unknown): string {
   if (status === 401) {
     return 'Invalid API key — check Settings'
   }
+  // 400 (e.g. SAP not configured), 404 (PO not found in SAP), 422 (no PO
+  // number on the document) and 502 (SAP unreachable) carry a useful detail.
+  if ([400, 404, 422, 502].includes(status) && typeof detail === 'string') {
+    return detail
+  }
   if (status === 400) {
-    return typeof detail === 'string' ? detail : 'The request was invalid.'
+    return 'The request was invalid.'
   }
   if (status === 500) {
     return 'Validation failed on the server. Check the backend logs.'
@@ -37,7 +41,6 @@ export async function validate(
   const formData = new FormData()
   formData.append('po_pdf', files.poPdfFile)
   formData.append('contract_pdf', files.contractPdfFile)
-  formData.append('sap_record', files.sapRecordText)
 
   let response: Response
   try {
