@@ -94,18 +94,31 @@ def _payment_terms(header: dict[str, str]) -> str:
     return f"Payment terms key {code}" if code else ""
 
 
+def _sum_field(items: list[dict[str, str]], field: str) -> Decimal:
+    return sum((_to_decimal(item.get(field, "")) for item in items), Decimal(0))
+
+
+def _document_value(header: dict[str, str], items: list[dict[str, str]]) -> Decimal:
+    # Contracts (BSTYP K) and scheduling agreements (L) have no item net
+    # value (NETWR is 0); their value is the target value, kept on the
+    # header (KTWRT) or, when that's blank, per item (ZWERT).
+    if header.get("BSTYP") in ("K", "L"):
+        return _to_decimal(header.get("KTWRT", "")) or _sum_field(items, "ZWERT")
+    return _sum_field(items, "NETWR")
+
+
 def _map_purchase_order(
     header: dict[str, str], items: list[dict[str, str]], vendor_name: str
 ) -> dict[str, str]:
     active_items = [item for item in items if not item.get("LOEKZ")]
-    total = sum((_to_decimal(item.get("NETWR", "")) for item in active_items), Decimal(0))
+    total = _document_value(header, active_items)
     currency = header.get("WAERS", "")
     record = {
         "po_number": header.get("EBELN", ""),
         "po_date": _format_date(header.get("BEDAT", "")),
         "contract_period_start": _format_date(header.get("KDATB", "")),
         "contract_period_end": _format_date(header.get("KDATE", "")),
-        "contract_price": f"{currency} {total:,.2f}".strip() if active_items else "",
+        "contract_price": f"{currency} {total:,.2f}".strip() if active_items or total else "",
         "payment_terms": _payment_terms(header),
         "vendor_name": vendor_name,
         "vendor_code": _alpha_out(header.get("LIFNR", "")),
@@ -151,12 +164,15 @@ def fetch_po_record(config: SapConfig, po_number: str) -> dict[str, str]:
             headers = _read_table(
                 connection,
                 "EKKO",
-                ["EBELN", "BEDAT", "LIFNR", "ZTERM", "ZBD1T", "ZBD2T", "ZBD3T", "WAERS", "KDATB", "KDATE"],
+                [
+                    "EBELN", "BSTYP", "BEDAT", "LIFNR", "ZTERM", "ZBD1T", "ZBD2T", "ZBD3T",
+                    "WAERS", "KDATB", "KDATE", "KTWRT",
+                ],
                 f"EBELN = {po_key}",
             )
             if not headers:
                 raise PurchaseOrderNotFoundError(f"PO {po_number} was not found in SAP")
-            items = _read_table(connection, "EKPO", ["EBELP", "NETWR", "LOEKZ"], f"EBELN = {po_key}")
+            items = _read_table(connection, "EKPO", ["EBELP", "NETWR", "ZWERT", "LOEKZ"], f"EBELN = {po_key}")
             vendor_name = _fetch_vendor_name(connection, pyrfc, headers[0].get("LIFNR", ""))
     except pyrfc.LogonError as error:
         raise SapAuthError(_error_message(error)) from error

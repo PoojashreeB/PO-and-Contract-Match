@@ -180,6 +180,30 @@ def test_fetch_reads_negative_values_with_trailing_minus(monkeypatch):
     assert record["contract_price"] == "INR 74.50"
 
 
+def test_fetch_uses_header_target_value_for_contracts(monkeypatch):
+    header = {**EKKO_ROW, "BSTYP": "K", "KTWRT": "200000.00"}
+    items = [{"EBELP": "00010", "NETWR": "0.00", "ZWERT": "500.00", "LOEKZ": ""}]
+    _fake_pyrfc(monkeypatch, _all_tables(EKKO=[header], EKPO=items))
+
+    record = fetch_po_record(CONFIG, "4600000001")
+
+    assert record["contract_price"] == "INR 200,000.00"
+
+
+def test_fetch_sums_item_target_values_when_agreement_header_has_none(monkeypatch):
+    header = {**EKKO_ROW, "BSTYP": "L", "KTWRT": "0.00"}
+    items = [
+        {"EBELP": "00010", "NETWR": "0.00", "ZWERT": "4800000.00", "LOEKZ": ""},
+        {"EBELP": "00020", "NETWR": "0.00", "ZWERT": "200000.00", "LOEKZ": ""},
+        {"EBELP": "00030", "NETWR": "0.00", "ZWERT": "999.00", "LOEKZ": "L"},
+    ]
+    _fake_pyrfc(monkeypatch, _all_tables(EKKO=[header], EKPO=items))
+
+    record = fetch_po_record(CONFIG, "5600001716")
+
+    assert record["contract_price"] == "INR 5,000,000.00"
+
+
 def test_fetch_leaves_out_vendor_name_when_vendor_lookup_fails(monkeypatch):
     _fake_pyrfc(monkeypatch, _all_tables(LFA1=ABAPApplicationError("NOT_AUTHORIZED")))
 
