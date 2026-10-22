@@ -14,18 +14,18 @@ export interface ValidateFiles {
   contractPdfFile: File
 }
 
-// A response that isn't JSON almost always means the API URL in Settings
-// points at the frontend (whose server answers with its own HTML page)
-// rather than the backend.
+// The backend always answers in JSON. A response that isn't JSON almost
+// always means the API URL in Settings points at the frontend (whose dev
+// server answers with its own HTML page, or an empty 404) rather than the
+// backend.
+const WRONG_API_URL_MESSAGE =
+  "The API base URL in Settings doesn't point to the backend — set it to the backend's address, e.g. http://127.0.0.1:8000"
+
 async function parseJson<T>(response: Response): Promise<T> {
   try {
     return (await response.json()) as T
   } catch {
-    const apiError: ApiError = {
-      status: response.status,
-      message:
-        "The API base URL in Settings doesn't point to the backend — set it to the backend's address, e.g. http://127.0.0.1:8000",
-    }
+    const apiError: ApiError = { status: response.status, message: WRONG_API_URL_MESSAGE }
     throw apiError
   }
 }
@@ -84,6 +84,12 @@ export async function validate(
       const body = await response.json()
       detail = body?.detail
     } catch {
+      // A crashing backend can answer 5xx in plain text; anything else that
+      // isn't JSON didn't come from the backend.
+      if (response.status < 500) {
+        const apiError: ApiError = { status: response.status, message: WRONG_API_URL_MESSAGE }
+        throw apiError
+      }
       detail = undefined
     }
     const apiError: ApiError = {
@@ -142,6 +148,12 @@ async function outlookRequest<T>(
       const body = await response.json()
       detail = body?.detail
     } catch {
+      // A crashing backend can answer 5xx in plain text; anything else that
+      // isn't JSON didn't come from the backend.
+      if (response.status < 500) {
+        const apiError: ApiError = { status: response.status, message: WRONG_API_URL_MESSAGE }
+        throw apiError
+      }
       detail = undefined
     }
     const apiError: ApiError = {
@@ -227,6 +239,12 @@ async function sapRequest<T>(
       const body = await response.json()
       detail = body?.detail
     } catch {
+      // A crashing backend can answer 5xx in plain text; anything else that
+      // isn't JSON didn't come from the backend.
+      if (response.status < 500) {
+        const apiError: ApiError = { status: response.status, message: WRONG_API_URL_MESSAGE }
+        throw apiError
+      }
       detail = undefined
     }
     const apiError: ApiError = {

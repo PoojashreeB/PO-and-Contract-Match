@@ -247,6 +247,27 @@ describe('responses that are not JSON', () => {
     })
   })
 
+  it('explains an empty 404 (the frontend server answering) as a wrong API URL', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 404 })))
+
+    await expect(validate('', 'my-key', files)).rejects.toMatchObject({
+      status: 404,
+      message: expect.stringContaining("doesn't point to the backend"),
+    })
+  })
+
+  it('keeps the server-error message for a plain-text 500 from the backend', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('Internal Server Error', { status: 500 })),
+    )
+
+    await expect(validate('http://127.0.0.1:8000', 'my-key', files)).rejects.toMatchObject({
+      status: 500,
+      message: 'Validation failed on the server. Check the backend logs.',
+    })
+  })
+
   it('explains an HTML response when loading a saved connection in Settings', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlPage()))
 
