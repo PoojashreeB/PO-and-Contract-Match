@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react'
 import { CheckCircle2, Database, Mail, Server } from 'lucide-react'
-import { DEFAULT_API_URL, getApiKey, getApiUrl, normalizeApiUrl, setApiKey, setApiUrl } from '../storage'
+import {
+  DEFAULT_API_URL,
+  getApiKey,
+  getApiUrl,
+  normalizeApiKey,
+  normalizeApiUrl,
+  setApiKey,
+  setApiUrl,
+} from '../storage'
 import { getOutlookConfig, getSapConfig, saveOutlookConfig, saveSapConfig } from '../api'
 import type { ApiError } from '../types'
 import { Alert } from './ui/Alert'
@@ -39,6 +47,8 @@ export function SettingsPanel() {
   useEffect(() => {
     let cancelled = false
     setSapError(null)
+    // Without a key every call is a 401; wait until one is saved.
+    if (!connection.key) return
     getSapConfig(connection.url, connection.key)
       .then((config) => {
         if (cancelled) return
@@ -62,6 +72,7 @@ export function SettingsPanel() {
   useEffect(() => {
     let cancelled = false
     setOutlookError(null)
+    if (!connection.key) return
     getOutlookConfig(connection.url, connection.key)
       .then((config) => {
         if (cancelled) return
@@ -82,10 +93,11 @@ export function SettingsPanel() {
 
   function handleSave() {
     const url = normalizeApiUrl(apiUrl)
-    const key = apiKey.trim()
+    const key = normalizeApiKey(apiKey)
     setApiUrl(url)
     setApiKey(key)
     setApiUrlState(url)
+    setApiKeyState(key)
     setConnection({ url, key })
     setSaved(true)
   }

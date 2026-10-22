@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { DEFAULT_API_URL, getApiUrl, normalizeApiUrl, setApiUrl } from './storage'
+import { DEFAULT_API_URL, getApiKey, getApiUrl, normalizeApiKey, normalizeApiUrl, setApiKey, setApiUrl } from './storage'
 
 describe('normalizeApiUrl', () => {
   it.each([
@@ -27,5 +27,24 @@ describe('getApiUrl / setApiUrl', () => {
   it('stores the normalized URL', () => {
     setApiUrl('127.0.0.1:8000/')
     expect(getApiUrl()).toBe('http://127.0.0.1:8000')
+  })
+})
+
+describe('normalizeApiKey', () => {
+  it.each([
+    ['abc-123', 'abc-123'],
+    ['  abc-123  ', 'abc-123'],
+    ['"abc-123"', 'abc-123'],
+    ["'abc-123'", 'abc-123'],
+    [' "abc-123" ', 'abc-123'],
+    ['"abc-123', '"abc-123'],
+  ])('normalizes %j to %j', (input, expected) => {
+    expect(normalizeApiKey(input)).toBe(expected)
+  })
+
+  it('stores the key without quotes', () => {
+    localStorage.clear()
+    setApiKey('"abc-123"')
+    expect(getApiKey()).toBe('abc-123')
   })
 })

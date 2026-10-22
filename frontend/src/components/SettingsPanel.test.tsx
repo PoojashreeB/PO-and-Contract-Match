@@ -25,6 +25,7 @@ describe('SettingsPanel — Outlook Connection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+    localStorage.setItem('poContractMatch.apiKey', 'test-key')
     mockGetSapConfig.mockRejectedValue({ status: 404, message: 'SAP is not configured yet' })
   })
 
@@ -101,6 +102,7 @@ describe('SettingsPanel — SAP Connection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+    localStorage.setItem('poContractMatch.apiKey', 'test-key')
     mockGetOutlookConfig.mockRejectedValue(notConfiguredError())
   })
 
@@ -183,8 +185,25 @@ describe('SettingsPanel — API Connection', () => {
     mockGetSapConfig.mockRejectedValue({ status: 404, message: 'SAP is not configured yet' })
   })
 
+  it('does not call the backend until an API key is saved', async () => {
+    const user = userEvent.setup()
+    render(<SettingsPanel />)
+
+    expect(mockGetSapConfig).not.toHaveBeenCalled()
+    expect(mockGetOutlookConfig).not.toHaveBeenCalled()
+    expect(screen.queryByText(/API key/i, { selector: '[role="alert"], .text-red-600' })).not.toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('API key'), '"abc-123"')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(screen.getByLabelText('API key')).toHaveValue('abc-123')
+    await waitFor(() => expect(mockGetSapConfig).toHaveBeenCalledTimes(1))
+    expect(mockGetSapConfig.mock.calls[0][1]).toBe('abc-123')
+  })
+
   it('normalizes the saved URL and reloads the connections from it', async () => {
     const user = userEvent.setup()
+    localStorage.setItem('poContractMatch.apiKey', 'abc-123')
     render(<SettingsPanel />)
     await waitFor(() => expect(mockGetSapConfig).toHaveBeenCalledTimes(1))
 

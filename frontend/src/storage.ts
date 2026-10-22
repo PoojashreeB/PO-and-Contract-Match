@@ -24,6 +24,12 @@ export function getApiKey(): string {
   return localStorage.getItem(API_KEY_KEY) ?? ''
 }
 
+// Strips whitespace and quotes copied along with the value from .env
+// (API_KEY="..."), which would otherwise make the key wrong.
+export function normalizeApiKey(value: string): string {
+  return value.trim().replace(/^(['"])(.*)\1$/, '$2').trim()
+}
+
 export function setApiKey(value: string): void {
-  localStorage.setItem(API_KEY_KEY, value)
+  localStorage.setItem(API_KEY_KEY, normalizeApiKey(value))
 }
