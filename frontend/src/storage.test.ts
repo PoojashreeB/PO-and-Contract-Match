@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { DEFAULT_API_URL, getApiKey, getApiUrl, normalizeApiKey, normalizeApiUrl, setApiKey, setApiUrl } from './storage'
+import { DEFAULT_API_URL, ENV_API_KEY, getApiKey, getApiUrl, normalizeApiKey, normalizeApiUrl, setApiKey, setApiUrl } from './storage'
 
 describe('normalizeApiUrl', () => {
   it.each([
@@ -46,5 +46,21 @@ describe('normalizeApiKey', () => {
     localStorage.clear()
     setApiKey('"abc-123"')
     expect(getApiKey()).toBe('abc-123')
+  })
+})
+
+describe('getApiKey fallback', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('uses the key saved in Settings', () => {
+    setApiKey('saved-key')
+    expect(getApiKey()).toBe('saved-key')
+  })
+
+  it('falls back to the .env key (empty in tests) when nothing is saved', () => {
+    expect(getApiKey()).toBe(ENV_API_KEY)
+    expect(ENV_API_KEY).toBe('')
   })
 })

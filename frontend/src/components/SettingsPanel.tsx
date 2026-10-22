@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { CheckCircle2, Database, Mail, Server } from 'lucide-react'
 import {
   DEFAULT_API_URL,
+  ENV_API_KEY,
   getApiKey,
   getApiUrl,
+  getSavedApiKey,
   normalizeApiKey,
   normalizeApiUrl,
   setApiKey,
@@ -19,7 +21,7 @@ import { TextField } from './ui/TextField'
 
 export function SettingsPanel() {
   const [apiUrl, setApiUrlState] = useState(getApiUrl())
-  const [apiKey, setApiKeyState] = useState(getApiKey())
+  const [apiKey, setApiKeyState] = useState(getSavedApiKey())
   const [saved, setSaved] = useState(false)
   // The connection last saved; the SAP and Outlook cards (re)load from it.
   const [connection, setConnection] = useState({ url: getApiUrl(), key: getApiKey() })
@@ -98,14 +100,14 @@ export function SettingsPanel() {
     setApiKey(key)
     setApiUrlState(url)
     setApiKeyState(key)
-    setConnection({ url, key })
+    setConnection({ url, key: key || ENV_API_KEY })
     setSaved(true)
   }
 
   async function handleSaveOutlookConfig() {
     setOutlookError(null)
     try {
-      const result = await saveOutlookConfig(normalizeApiUrl(apiUrl), apiKey, {
+      const result = await saveOutlookConfig(normalizeApiUrl(apiUrl), normalizeApiKey(apiKey) || ENV_API_KEY, {
         tenant_id: tenantId,
         client_id: clientId,
         client_secret: clientSecret,
@@ -123,7 +125,7 @@ export function SettingsPanel() {
   async function handleSaveSapConfig() {
     setSapError(null)
     try {
-      const result = await saveSapConfig(normalizeApiUrl(apiUrl), apiKey, {
+      const result = await saveSapConfig(normalizeApiUrl(apiUrl), normalizeApiKey(apiKey) || ENV_API_KEY, {
         ashost: sapAshost.trim(),
         sysnr: sapSysnr.trim(),
         client: sapClient.trim(),
@@ -157,17 +159,23 @@ export function SettingsPanel() {
               setSaved(false)
             }}
           />
-          <TextField
-            id="api-key"
-            label="API key"
-            type="password"
-            placeholder="X-API-Key value"
-            value={apiKey}
-            onChange={(e) => {
-              setApiKeyState(e.target.value)
-              setSaved(false)
-            }}
-          />
+          <div>
+            <TextField
+              id="api-key"
+              label="Backend API key (API_KEY in .env)"
+              type="password"
+              placeholder={ENV_API_KEY ? 'Using API_KEY from .env' : 'API_KEY value from .env'}
+              value={apiKey}
+              onChange={(e) => {
+                setApiKeyState(e.target.value)
+                setSaved(false)
+              }}
+            />
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Not the OpenRouter key.
+              {ENV_API_KEY && ' Leave empty to use API_KEY from .env.'}
+            </p>
+          </div>
           <div className="flex items-center gap-2">
             <Button size="sm" onClick={handleSave}>
               Save

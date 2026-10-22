@@ -185,6 +185,13 @@ describe('SettingsPanel — API Connection', () => {
     mockGetSapConfig.mockRejectedValue({ status: 404, message: 'SAP is not configured yet' })
   })
 
+  it('labels the key as the backend API_KEY, not the OpenRouter key', () => {
+    render(<SettingsPanel />)
+
+    expect(screen.getByLabelText('Backend API key (API_KEY in .env)')).toBeInTheDocument()
+    expect(screen.getByText(/Not the OpenRouter key/)).toBeInTheDocument()
+  })
+
   it('does not call the backend until an API key is saved', async () => {
     const user = userEvent.setup()
     render(<SettingsPanel />)
@@ -193,10 +200,10 @@ describe('SettingsPanel — API Connection', () => {
     expect(mockGetOutlookConfig).not.toHaveBeenCalled()
     expect(screen.queryByText(/API key/i, { selector: '[role="alert"], .text-red-600' })).not.toBeInTheDocument()
 
-    await user.type(screen.getByLabelText('API key'), '"abc-123"')
+    await user.type(screen.getByLabelText('Backend API key (API_KEY in .env)'), '"abc-123"')
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(screen.getByLabelText('API key')).toHaveValue('abc-123')
+    expect(screen.getByLabelText('Backend API key (API_KEY in .env)')).toHaveValue('abc-123')
     await waitFor(() => expect(mockGetSapConfig).toHaveBeenCalledTimes(1))
     expect(mockGetSapConfig.mock.calls[0][1]).toBe('abc-123')
   })

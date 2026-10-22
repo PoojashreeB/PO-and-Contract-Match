@@ -20,8 +20,18 @@ export function setApiUrl(value: string): void {
   localStorage.setItem(API_URL_KEY, normalizeApiUrl(value))
 }
 
-export function getApiKey(): string {
+// The dev server's fallback: API_KEY from the project's .env (see
+// vite.config.ts). Empty in production builds.
+export const ENV_API_KEY: string = __ENV_API_KEY__
+
+// The key saved in Settings, without the .env fallback.
+export function getSavedApiKey(): string {
   return localStorage.getItem(API_KEY_KEY) ?? ''
+}
+
+// The key to send: the one saved in Settings, or else the .env fallback.
+export function getApiKey(): string {
+  return getSavedApiKey() || ENV_API_KEY
 }
 
 // Strips whitespace and quotes copied along with the value from .env
