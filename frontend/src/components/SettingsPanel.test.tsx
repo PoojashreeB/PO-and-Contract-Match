@@ -174,3 +174,28 @@ describe('SettingsPanel — SAP Connection', () => {
     expect(await screen.findByText('Invalid API key — check Settings')).toBeInTheDocument()
   })
 })
+
+describe('SettingsPanel — API Connection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+    mockGetOutlookConfig.mockRejectedValue(notConfiguredError())
+    mockGetSapConfig.mockRejectedValue({ status: 404, message: 'SAP is not configured yet' })
+  })
+
+  it('normalizes the saved URL and reloads the connections from it', async () => {
+    const user = userEvent.setup()
+    render(<SettingsPanel />)
+    await waitFor(() => expect(mockGetSapConfig).toHaveBeenCalledTimes(1))
+
+    const urlField = screen.getByLabelText('API base URL')
+    await user.clear(urlField)
+    await user.type(urlField, '127.0.0.1:8000/')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(urlField).toHaveValue('http://127.0.0.1:8000')
+    await waitFor(() => expect(mockGetSapConfig).toHaveBeenCalledTimes(2))
+    expect(mockGetSapConfig.mock.calls[1][0]).toBe('http://127.0.0.1:8000')
+    expect(mockGetOutlookConfig.mock.calls.at(-1)?.[0]).toBe('http://127.0.0.1:8000')
+  })
+})

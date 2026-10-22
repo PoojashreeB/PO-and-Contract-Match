@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CheckCircle2, Database, Mail, Server } from 'lucide-react'
-import { getApiKey, getApiUrl, setApiKey, setApiUrl } from '../storage'
+import { DEFAULT_API_URL, getApiKey, getApiUrl, normalizeApiUrl, setApiKey, setApiUrl } from '../storage'
 import { getOutlookConfig, getSapConfig, saveOutlookConfig, saveSapConfig } from '../api'
 import type { ApiError } from '../types'
 import { Alert } from './ui/Alert'
@@ -13,6 +13,8 @@ export function SettingsPanel() {
   const [apiUrl, setApiUrlState] = useState(getApiUrl())
   const [apiKey, setApiKeyState] = useState(getApiKey())
   const [saved, setSaved] = useState(false)
+  // The connection last saved; the SAP and Outlook cards (re)load from it.
+  const [connection, setConnection] = useState({ url: getApiUrl(), key: getApiKey() })
 
   const [tenantId, setTenantId] = useState('')
   const [clientId, setClientId] = useState('')
@@ -36,7 +38,8 @@ export function SettingsPanel() {
 
   useEffect(() => {
     let cancelled = false
-    getSapConfig(apiUrl, apiKey)
+    setSapError(null)
+    getSapConfig(connection.url, connection.key)
       .then((config) => {
         if (cancelled) return
         setSapAshost(config.ashost)
@@ -54,12 +57,12 @@ export function SettingsPanel() {
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [connection])
 
   useEffect(() => {
     let cancelled = false
-    getOutlookConfig(apiUrl, apiKey)
+    setOutlookError(null)
+    getOutlookConfig(connection.url, connection.key)
       .then((config) => {
         if (cancelled) return
         setTenantId(config.tenant_id)
@@ -75,19 +78,22 @@ export function SettingsPanel() {
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [connection])
 
   function handleSave() {
-    setApiUrl(apiUrl.trim())
-    setApiKey(apiKey.trim())
+    const url = normalizeApiUrl(apiUrl)
+    const key = apiKey.trim()
+    setApiUrl(url)
+    setApiKey(key)
+    setApiUrlState(url)
+    setConnection({ url, key })
     setSaved(true)
   }
 
   async function handleSaveOutlookConfig() {
     setOutlookError(null)
     try {
-      const result = await saveOutlookConfig(apiUrl, apiKey, {
+      const result = await saveOutlookConfig(normalizeApiUrl(apiUrl), apiKey, {
         tenant_id: tenantId,
         client_id: clientId,
         client_secret: clientSecret,
@@ -105,7 +111,7 @@ export function SettingsPanel() {
   async function handleSaveSapConfig() {
     setSapError(null)
     try {
-      const result = await saveSapConfig(apiUrl, apiKey, {
+      const result = await saveSapConfig(normalizeApiUrl(apiUrl), apiKey, {
         ashost: sapAshost.trim(),
         sysnr: sapSysnr.trim(),
         client: sapClient.trim(),
@@ -132,7 +138,7 @@ export function SettingsPanel() {
             id="api-url"
             label="API base URL"
             type="text"
-            placeholder="http://localhost:8000"
+            placeholder={DEFAULT_API_URL}
             value={apiUrl}
             onChange={(e) => {
               setApiUrlState(e.target.value)
